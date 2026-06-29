@@ -24,6 +24,17 @@ Gateway + Match + Room/Battle + DB + Redis + RPC
 - 固定 tick 推进游戏状态
 - 碰墙、撞蛇、抢同一格判死
 
+## 后端结构
+
+```text
+src/main.cpp          程序入口，只负责解析端口并启动服务器
+src/server.hpp/.cpp   单进程房间服，负责连接调度、协议分发、房间管理、状态广播
+src/game.hpp/.cpp     游戏模型和规则，负责蛇移动、食物、碰撞、计分
+src/websocket.hpp/.cpp WebSocket 握手、frame 编码和解析
+src/json_util.hpp/.cpp 轻量 JSON 字符串读取和转义
+src/net.hpp/.cpp      socket 工具函数
+```
+
 ## 编译运行
 
 ```bash
@@ -105,4 +116,4 @@ web/index.html
 
 ## 设计说明
 
-这是练习用入门实现，故意不引入第三方库。生产项目建议替换为成熟网络库和 JSON 库，例如 Boost.Beast/WebSocket++、asio、nlohmann/json，并拆分网络层、房间层、协议层和游戏逻辑。
+这是练习用入门实现，故意不引入第三方库。生产项目建议进一步替换为成熟网络库和 JSON 库，例如 Boost.Beast/WebSocket++、asio、nlohmann/json。

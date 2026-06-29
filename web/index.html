@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>多人贪吃蛇</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111318;
+      --panel: #1b2029;
+      --panel-2: #242b35;
+      --line: #343c49;
+      --text: #eef2f7;
+      --muted: #9aa6b8;
+      --accent: #38c172;
+      --danger: #f05252;
+      --food: #ffcf56;
+      --snake: #60a5fa;
+      --snake-head: #93c5fd;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) 1fr;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    .status {
+      min-width: 74px;
+      text-align: center;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status.online {
+      border-color: rgba(56, 193, 114, .7);
+      color: var(--accent);
+    }
+
+    .status.error {
+      border-color: rgba(240, 82, 82, .7);
+      color: var(--danger);
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 11px;
+      color: var(--text);
+      background: #111722;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    button {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--text);
+      background: var(--panel-2);
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: rgba(56, 193, 114, .8);
+      background: #1d5d3a;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: .55;
+    }
+
+    .section-title {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .players {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 120px;
+    }
+
+    .player {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #141a24;
+    }
+
+    .player strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .player span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .log {
+      min-height: 96px;
+      max-height: 180px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      color: var(--muted);
+      background: #111722;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .stage {
+      min-width: 0;
+      padding: 24px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+    }
+
+    .hint {
+      font-size: 13px;
+    }
+
+    .score {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .board-wrap {
+      min-height: 0;
+      display: grid;
+      place-items: center;
+    }
+
+    canvas {
+      width: min(100%, calc((100vh - 130px) * 4 / 3));
+      aspect-ratio: 4 / 3;
+      max-height: calc(100vh - 130px);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0c1118;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, .28);
+    }
+
+    @media (max-width: 820px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .stage {
+        padding: 16px;
+      }
+
+      canvas {
+        width: 100%;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>多人贪吃蛇</h1>
+        <div id="status" class="status">未连接</div>
+      </div>
+
+      <div class="field">
+        <label for="server">服务器</label>
+        <input id="server" value="ws://127.0.0.1:9002" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label for="room">房间</label>
+        <input id="room" value="lobby" maxlength="32" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label for="name">昵称</label>
+        <input id="name" value="player" maxlength="32" autocomplete="off">
+      </div>
+
+      <div class="actions">
+        <button id="connect" class="primary">连接</button>
+        <button id="disconnect" disabled>断开</button>
+      </div>
+
+      <div class="section-title">玩家</div>
+      <div id="players" class="players"></div>
+
+      <div class="section-title">消息</div>
+      <div id="log" class="log"></div>
+    </aside>
+
+    <section class="stage">
+      <div class="topbar">
+        <div class="hint">方向键或 WASD 控制移动</div>
+        <div class="score">
+          <span id="roomLabel">room: -</span>
+          <span id="playerLabel">id: -</span>
+        </div>
+      </div>
+      <div class="board-wrap">
+        <canvas id="board" width="960" height="720" aria-label="snake board"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      ws: null,
+      playerId: null,
+      room: null,
+      width: 40,
+      height: 30,
+      food: null,
+      players: []
+    };
+
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    const els = {
+      server: document.getElementById('server'),
+      room: document.getElementById('room'),
+      name: document.getElementById('name'),
+      connect: document.getElementById('connect'),
+      disconnect: document.getElementById('disconnect'),
+      status: document.getElementById('status'),
+      players: document.getElementById('players'),
+      log: document.getElementById('log'),
+      roomLabel: document.getElementById('roomLabel'),
+      playerLabel: document.getElementById('playerLabel')
+    };
+
+    function setStatus(text, cls) {
+      els.status.textContent = text;
+      els.status.className = `status ${cls || ''}`.trim();
+    }
+
+    function log(text) {
+      const line = document.createElement('div');
+      line.textContent = `${new Date().toLocaleTimeString()} ${text}`;
+      els.log.appendChild(line);
+      els.log.scrollTop = els.log.scrollHeight;
+    }
+
+    function send(data) {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      state.ws.send(JSON.stringify(data));
+    }
+
+    function connect() {
+      if (state.ws) {
+        state.ws.close();
+      }
+      setStatus('连接中', '');
+      const ws = new WebSocket(els.server.value.trim());
+      state.ws = ws;
+
+      ws.addEventListener('open', () => {
+        setStatus('在线', 'online');
+        els.connect.disabled = true;
+        els.disconnect.disabled = false;
+        send({
+          type: 'join',
+          room: els.room.value.trim() || 'lobby',
+          name: els.name.value.trim() || 'player'
+        });
+      });
+
+      ws.addEventListener('message', event => {
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch (err) {
+          log('收到非 JSON 消息');
+          return;
+        }
+        handleMessage(msg);
+      });
+
+      ws.addEventListener('close', () => {
+        if (state.ws === ws) {
+          state.ws = null;
+        }
+        els.connect.disabled = false;
+        els.disconnect.disabled = true;
+        setStatus('未连接', '');
+        log('连接已关闭');
+      });
+
+      ws.addEventListener('error', () => {
+        setStatus('错误', 'error');
+        log('连接失败，请确认服务端已启动');
+      });
+    }
+
+    function disconnect() {
+      send({ type: 'leave' });
+      if (state.ws) {
+        state.ws.close();
+      }
+    }
+
+    function handleMessage(msg) {
+      if (msg.type === 'hello') {
+        log('服务端已连接');
+        return;
+      }
+      if (msg.type === 'joined') {
+        state.playerId = msg.playerId;
+        state.room = msg.room;
+        state.width = msg.width;
+        state.height = msg.height;
+        els.playerLabel.textContent = `id: ${msg.playerId}`;
+        els.roomLabel.textContent = `room: ${msg.room}`;
+        log(`加入房间 ${msg.room}`);
+        return;
+      }
+      if (msg.type === 'state') {
+        state.room = msg.room;
+        state.width = msg.width;
+        state.height = msg.height;
+        state.food = msg.food;
+        state.players = msg.players || [];
+        els.roomLabel.textContent = `room: ${msg.room}`;
+        renderPlayers();
+        draw();
+        return;
+      }
+      if (msg.type === 'error') {
+        log(`错误: ${msg.message}`);
+        return;
+      }
+      if (msg.type === 'pong') {
+        log('pong');
+      }
+    }
+
+    function renderPlayers() {
+      els.players.textContent = '';
+      if (state.players.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'player';
+        empty.innerHTML = '<strong>暂无玩家</strong><span>-</span>';
+        els.players.appendChild(empty);
+        return;
+      }
+      for (const player of state.players) {
+        const row = document.createElement('div');
+        row.className = 'player';
+        const name = document.createElement('strong');
+        name.textContent = `${player.name}${player.id === state.playerId ? ' / 你' : ''}`;
+        const score = document.createElement('span');
+        score.textContent = player.alive ? `分数 ${player.score}` : '已阵亡';
+        row.append(name, score);
+        els.players.appendChild(row);
+      }
+    }
+
+    function draw() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const cell = Math.min(w / state.width, h / state.height);
+      const boardW = state.width * cell;
+      const boardH = state.height * cell;
+      const ox = (w - boardW) / 2;
+      const oy = (h - boardH) / 2;
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#0c1118';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = '#1f2937';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= state.width; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(ox + x * cell, oy);
+        ctx.lineTo(ox + x * cell, oy + boardH);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= state.height; y += 1) {
+        ctx.beginPath();
+        ctx.moveTo(ox, oy + y * cell);
+        ctx.lineTo(ox + boardW, oy + y * cell);
+        ctx.stroke();
+      }
+
+      if (state.food) {
+        drawCell(state.food.x, state.food.y, cell, ox, oy, getCss('--food'), 0.7);
+      }
+
+      for (const player of state.players) {
+        const isMe = player.id === state.playerId;
+        const bodyColor = player.alive ? (isMe ? getCss('--accent') : getCss('--snake')) : '#6b7280';
+        const headColor = player.alive ? (isMe ? '#86efac' : getCss('--snake-head')) : '#9ca3af';
+        player.snake.forEach((part, index) => {
+          drawCell(part.x, part.y, cell, ox, oy, index === 0 ? headColor : bodyColor, 0.55);
+        });
+      }
+
+      if (!state.ws) {
+        ctx.fillStyle = 'rgba(0, 0, 0, .52)';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#eef2f7';
+        ctx.font = '28px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('启动服务端后点击连接', w / 2, h / 2);
+      }
+    }
+
+    function drawCell(x, y, cell, ox, oy, color, insetRatio) {
+      const inset = Math.max(1, cell * insetRatio * 0.12);
+      ctx.fillStyle = color;
+      ctx.fillRect(ox + x * cell + inset, oy + y * cell + inset, cell - inset * 2, cell - inset * 2);
+    }
+
+    function getCss(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    const dirs = {
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      KeyW: 'up',
+      KeyS: 'down',
+      KeyA: 'left',
+      KeyD: 'right'
+    };
+
+    window.addEventListener('keydown', event => {
+      const dir = dirs[event.code];
+      if (!dir) {
+        return;
+      }
+      event.preventDefault();
+      send({ type: 'turn', dir });
+    });
+
+    els.connect.addEventListener('click', connect);
+    els.disconnect.addEventListener('click', disconnect);
+    renderPlayers();
+    draw();
+  </script>
+</body>
+</html>

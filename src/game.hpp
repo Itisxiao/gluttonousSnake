@@ -5,6 +5,7 @@
 #include <map>
 #include <random>
 #include <string>
+#include <vector>
 
 using Clock = std::chrono::steady_clock;
 
@@ -37,10 +38,23 @@ struct Room {
     Clock::time_point lastTick = Clock::now();
 };
 
+enum class GameEventType {
+    AteFood,
+    Died,
+};
+
+struct GameEvent {
+    GameEventType type;
+    int playerId = 0;
+    std::string playerName;
+    int score = 0;
+    Position position;
+};
+
 bool isOpposite(const std::string& a, const std::string& b);
 Position step(Position p, const std::string& dir);
 bool cellOccupied(const Room& room, Position p);
 Position randomEmptyCell(const Room& room, std::mt19937& rng);
 void placeFood(Room& room, std::mt19937& rng);
 bool hitsSnake(const Room& room, int movingPlayerId, Position p);
-void updateRoom(Room& room, std::mt19937& rng);
+std::vector<GameEvent> updateRoom(Room& room, std::mt19937& rng);

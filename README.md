@@ -65,6 +65,20 @@ web/index.html
 
 页面默认连接 `ws://127.0.0.1:9002`，点击“连接”后会加入 `lobby` 房间。使用方向键或 WASD 控制移动。
 
+## 服务端日志
+
+服务端会在终端输出运行日志，方便观察连接和游戏事件：
+
+```text
+[connect] fd=4
+[handshake] fd=4 ok=1
+[join] fd=4 room=lobby playerId=1 name=alice head=(14,20)
+[eat] room=lobby playerId=1 name=alice score=1 at=(18,20) nextFood=(9,6)
+[dead] room=lobby playerId=1 name=alice score=1 at=(40,20)
+[restart] fd=4 room=lobby playerId=1 head=(17,25)
+[disconnect] fd=4 room=lobby playerId=1
+```
+
 ## 客户端协议
 
 客户端发送 JSON 文本帧。

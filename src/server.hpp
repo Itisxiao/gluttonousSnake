@@ -35,6 +35,7 @@ private:
     void spawnPlayer(Room& room, Player& player);
     std::optional<Player*> findPlayer(Client& client);
     void tickRooms();
+    void logGameEvents(const Room& room, const std::vector<GameEvent>& events);
     void broadcastState(const Room& room);
     void sendJson(int fd, const std::string& json);
     void sendError(int fd, const std::string& message);

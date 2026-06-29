@@ -102,6 +102,7 @@ void SnakeServer::acceptClient() {
         Client client;
         client.fd = fd;
         clients_[fd] = client;
+        std::cout << "[connect] fd=" << fd << "\n";
     }
 }
 
@@ -146,6 +147,7 @@ void SnakeServer::handleHandshake(Client& client) {
     const size_t end = client.input.find("\r\n\r\n");
     if (end == std::string::npos) {
         if (client.input.size() > 8192) {
+            std::cout << "[disconnect] fd=" << client.fd << " reason=handshake_too_large\n";
             disconnect(client.fd);
         }
         return;
@@ -153,6 +155,7 @@ void SnakeServer::handleHandshake(Client& client) {
     const std::string request = client.input.substr(0, end + 4);
     auto key = headerValue(request, "Sec-WebSocket-Key");
     if (!key) {
+        std::cout << "[disconnect] fd=" << client.fd << " reason=missing_websocket_key\n";
         disconnect(client.fd);
         return;
     }
@@ -167,12 +170,14 @@ void SnakeServer::handleHandshake(Client& client) {
     }
     client.handshaken = true;
     client.input.erase(0, end + 4);
+    std::cout << "[handshake] fd=" << client.fd << " ok=1\n";
     sendJson(client.fd, R"({"type":"hello","message":"join with {\"type\":\"join\",\"room\":\"lobby\",\"name\":\"player\"}"})");
 }
 
 void SnakeServer::handleJson(Client& client, const std::string& payload) {
     const auto type = jsonString(payload, "type");
     if (!type) {
+        std::cout << "[protocol_error] fd=" << client.fd << " reason=missing_type\n";
         sendError(client.fd, "missing type");
         return;
     }
@@ -188,6 +193,7 @@ void SnakeServer::handleJson(Client& client, const std::string& payload) {
     } else if (*type == "ping") {
         sendJson(client.fd, R"({"type":"pong"})");
     } else {
+        std::cout << "[protocol_error] fd=" << client.fd << " reason=unknown_type\n";
         sendError(client.fd, "unknown type");
     }
 }
@@ -204,6 +210,7 @@ void SnakeServer::joinRoom(Client& client, std::string roomId, std::string name)
     Room& room = rooms_[roomId];
     room.id = roomId;
     if (static_cast<int>(room.players.size()) >= kMaxPlayersPerRoom) {
+        std::cout << "[join_rejected] fd=" << client.fd << " room=" << roomId << " reason=room_full\n";
         sendError(client.fd, "room full");
         return;
     }
@@ -214,10 +221,14 @@ void SnakeServer::joinRoom(Client& client, std::string roomId, std::string name)
     player.id = playerId;
     player.name = name.substr(0, 32);
     spawnPlayer(room, player);
+    const Position head = player.snake.front();
     room.players[playerId] = std::move(player);
     client.roomId = roomId;
     client.playerId = playerId;
     placeFood(room, rng_);
+
+    std::cout << "[join] fd=" << client.fd << " room=" << roomId << " playerId=" << playerId
+              << " name=" << name.substr(0, 32) << " head=(" << head.x << "," << head.y << ")\n";
 
     std::ostringstream joined;
     joined << "{\"type\":\"joined\",\"room\":\"" << escapeJson(roomId) << "\",\"playerId\":" << playerId
@@ -230,10 +241,14 @@ void SnakeServer::leaveRoom(Client& client) {
     if (client.roomId.empty()) {
         return;
     }
+    const std::string roomId = client.roomId;
+    const int playerId = client.playerId;
     auto roomIt = rooms_.find(client.roomId);
     if (roomIt != rooms_.end()) {
         roomIt->second.players.erase(client.playerId);
+        std::cout << "[leave] fd=" << client.fd << " room=" << roomId << " playerId=" << playerId << "\n";
         if (roomIt->second.players.empty()) {
+            std::cout << "[room_closed] room=" << roomId << "\n";
             rooms_.erase(roomIt);
         } else {
             broadcastState(roomIt->second);
@@ -245,11 +260,23 @@ void SnakeServer::leaveRoom(Client& client) {
 
 void SnakeServer::turn(Client& client, const std::string& dir) {
     if (dir != "up" && dir != "down" && dir != "left" && dir != "right") {
+        std::cout << "[turn_rejected] fd=" << client.fd << " dir=" << dir << " reason=invalid_dir\n";
         sendError(client.fd, "invalid dir");
         return;
     }
     auto player = findPlayer(client);
-    if (!player || !(*player)->alive || isOpposite((*player)->dir, dir)) {
+    if (!player) {
+        std::cout << "[turn_rejected] fd=" << client.fd << " dir=" << dir << " reason=player_not_found\n";
+        return;
+    }
+    if (!(*player)->alive) {
+        std::cout << "[turn_rejected] fd=" << client.fd << " playerId=" << (*player)->id
+                  << " dir=" << dir << " reason=dead\n";
+        return;
+    }
+    if (isOpposite((*player)->dir, dir)) {
+        std::cout << "[turn_rejected] fd=" << client.fd << " playerId=" << (*player)->id
+                  << " dir=" << dir << " reason=opposite_direction\n";
         return;
     }
     (*player)->nextDir = dir;
@@ -257,21 +284,28 @@ void SnakeServer::turn(Client& client, const std::string& dir) {
 
 void SnakeServer::restart(Client& client) {
     if (client.roomId.empty()) {
+        std::cout << "[restart_rejected] fd=" << client.fd << " reason=not_in_room\n";
         sendError(client.fd, "join room first");
         return;
     }
     auto roomIt = rooms_.find(client.roomId);
     if (roomIt == rooms_.end()) {
+        std::cout << "[restart_rejected] fd=" << client.fd << " room=" << client.roomId << " reason=room_not_found\n";
         sendError(client.fd, "room not found");
         return;
     }
     auto playerIt = roomIt->second.players.find(client.playerId);
     if (playerIt == roomIt->second.players.end()) {
+        std::cout << "[restart_rejected] fd=" << client.fd << " playerId=" << client.playerId
+                  << " reason=player_not_found\n";
         sendError(client.fd, "player not found");
         return;
     }
 
     spawnPlayer(roomIt->second, playerIt->second);
+    const Position head = playerIt->second.snake.front();
+    std::cout << "[restart] fd=" << client.fd << " room=" << client.roomId << " playerId=" << client.playerId
+              << " head=(" << head.x << "," << head.y << ")\n";
     broadcastState(roomIt->second);
 }
 
@@ -310,8 +344,24 @@ void SnakeServer::tickRooms() {
             continue;
         }
         room.lastTick = now;
-        updateRoom(room, rng_);
+        const auto events = updateRoom(room, rng_);
+        logGameEvents(room, events);
         broadcastState(room);
+    }
+}
+
+void SnakeServer::logGameEvents(const Room& room, const std::vector<GameEvent>& events) {
+    for (const auto& event : events) {
+        if (event.type == GameEventType::AteFood) {
+            std::cout << "[eat] room=" << room.id << " playerId=" << event.playerId
+                      << " name=" << event.playerName << " score=" << event.score
+                      << " at=(" << event.position.x << "," << event.position.y << ")"
+                      << " nextFood=(" << room.food.x << "," << room.food.y << ")\n";
+        } else if (event.type == GameEventType::Died) {
+            std::cout << "[dead] room=" << room.id << " playerId=" << event.playerId
+                      << " name=" << event.playerName << " score=" << event.score
+                      << " at=(" << event.position.x << "," << event.position.y << ")\n";
+        }
     }
 }
 
@@ -349,14 +399,19 @@ void SnakeServer::sendJson(int fd, const std::string& json) {
 }
 
 void SnakeServer::sendError(int fd, const std::string& message) {
+    std::cout << "[send_error] fd=" << fd << " message=" << message << "\n";
     sendJson(fd, "{\"type\":\"error\",\"message\":\"" + escapeJson(message) + "\"}");
 }
 
 void SnakeServer::disconnect(int fd) {
     auto it = clients_.find(fd);
     if (it != clients_.end()) {
+        std::cout << "[disconnect] fd=" << fd << " room=" << (it->second.roomId.empty() ? "-" : it->second.roomId)
+                  << " playerId=" << it->second.playerId << "\n";
         leaveRoom(it->second);
         clients_.erase(it);
+    } else {
+        std::cout << "[disconnect] fd=" << fd << " room=- playerId=0\n";
     }
     close(fd);
 }

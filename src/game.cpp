@@ -64,7 +64,8 @@ bool hitsSnake(const Room& room, int movingPlayerId, Position p) {
     return false;
 }
 
-void updateRoom(Room& room, std::mt19937& rng) {
+std::vector<GameEvent> updateRoom(Room& room, std::mt19937& rng) {
+    std::vector<GameEvent> events;
     std::vector<std::pair<int, Position>> nextHeads;
     for (auto& [id, player] : room.players) {
         if (!player.alive || player.snake.empty()) {
@@ -85,12 +86,14 @@ void updateRoom(Room& room, std::mt19937& rng) {
         if (head.x < 0 || head.y < 0 || head.x >= kBoardWidth || head.y >= kBoardHeight ||
             headCounts[{head.x, head.y}] > 1 || hitsSnake(room, id, head)) {
             player.alive = false;
+            events.push_back(GameEvent{GameEventType::Died, player.id, player.name, player.score, head});
             continue;
         }
         player.snake.push_front(head);
         if (head.x == room.food.x && head.y == room.food.y) {
             player.score += 1;
             ateFood = true;
+            events.push_back(GameEvent{GameEventType::AteFood, player.id, player.name, player.score, head});
         } else {
             player.snake.pop_back();
         }
@@ -98,4 +101,5 @@ void updateRoom(Room& room, std::mt19937& rng) {
     if (ateFood) {
         placeFood(room, rng);
     }
+    return events;
 }

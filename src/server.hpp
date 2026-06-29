@@ -31,6 +31,8 @@ private:
     void joinRoom(Client& client, std::string roomId, std::string name);
     void leaveRoom(Client& client);
     void turn(Client& client, const std::string& dir);
+    void restart(Client& client);
+    void spawnPlayer(Room& room, Player& player);
     std::optional<Player*> findPlayer(Client& client);
     void tickRooms();
     void broadcastState(const Room& room);

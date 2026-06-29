@@ -181,6 +181,8 @@ void SnakeServer::handleJson(Client& client, const std::string& payload) {
                  jsonString(payload, "name").value_or("player"));
     } else if (*type == "turn") {
         turn(client, jsonString(payload, "dir").value_or(""));
+    } else if (*type == "restart") {
+        restart(client);
     } else if (*type == "leave") {
         leaveRoom(client);
     } else if (*type == "ping") {
@@ -211,12 +213,7 @@ void SnakeServer::joinRoom(Client& client, std::string roomId, std::string name)
     player.clientFd = client.fd;
     player.id = playerId;
     player.name = name.substr(0, 32);
-    const Position head = randomEmptyCell(room, rng_);
-    const Position body1{std::max(0, head.x - 1), head.y};
-    const Position body2{std::max(0, head.x - 2), head.y};
-    player.snake.push_back(head);
-    player.snake.push_back(body1);
-    player.snake.push_back(body2);
+    spawnPlayer(room, player);
     room.players[playerId] = std::move(player);
     client.roomId = roomId;
     client.playerId = playerId;
@@ -256,6 +253,41 @@ void SnakeServer::turn(Client& client, const std::string& dir) {
         return;
     }
     (*player)->nextDir = dir;
+}
+
+void SnakeServer::restart(Client& client) {
+    if (client.roomId.empty()) {
+        sendError(client.fd, "join room first");
+        return;
+    }
+    auto roomIt = rooms_.find(client.roomId);
+    if (roomIt == rooms_.end()) {
+        sendError(client.fd, "room not found");
+        return;
+    }
+    auto playerIt = roomIt->second.players.find(client.playerId);
+    if (playerIt == roomIt->second.players.end()) {
+        sendError(client.fd, "player not found");
+        return;
+    }
+
+    spawnPlayer(roomIt->second, playerIt->second);
+    broadcastState(roomIt->second);
+}
+
+void SnakeServer::spawnPlayer(Room& room, Player& player) {
+    player.snake.clear();
+    player.dir = "right";
+    player.nextDir = "right";
+    player.alive = true;
+    player.score = 0;
+
+    const Position head = randomEmptyCell(room, rng_);
+    const Position body1{std::max(0, head.x - 1), head.y};
+    const Position body2{std::max(0, head.x - 2), head.y};
+    player.snake.push_back(head);
+    player.snake.push_back(body1);
+    player.snake.push_back(body2);
 }
 
 std::optional<Player*> SnakeServer::findPlayer(Client& client) {

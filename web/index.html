@@ -273,6 +273,7 @@
       <div class="actions">
         <button id="connect" class="primary">连接</button>
         <button id="disconnect" disabled>断开</button>
+        <button id="restart" disabled>重新开始</button>
       </div>
 
       <div class="section-title">玩家</div>
@@ -288,6 +289,7 @@
         <div class="score">
           <span id="roomLabel">room: -</span>
           <span id="playerLabel">id: -</span>
+          <span id="scoreLabel">score: 0</span>
         </div>
       </div>
       <div class="board-wrap">
@@ -315,11 +317,13 @@
       name: document.getElementById('name'),
       connect: document.getElementById('connect'),
       disconnect: document.getElementById('disconnect'),
+      restart: document.getElementById('restart'),
       status: document.getElementById('status'),
       players: document.getElementById('players'),
       log: document.getElementById('log'),
       roomLabel: document.getElementById('roomLabel'),
-      playerLabel: document.getElementById('playerLabel')
+      playerLabel: document.getElementById('playerLabel'),
+      scoreLabel: document.getElementById('scoreLabel')
     };
 
     function setStatus(text, cls) {
@@ -353,6 +357,7 @@
         setStatus('在线', 'online');
         els.connect.disabled = true;
         els.disconnect.disabled = false;
+        els.restart.disabled = false;
         send({
           type: 'join',
           room: els.room.value.trim() || 'lobby',
@@ -377,6 +382,11 @@
         }
         els.connect.disabled = false;
         els.disconnect.disabled = true;
+        els.restart.disabled = true;
+        state.playerId = null;
+        state.room = null;
+        state.players = [];
+        updateTopbar();
         setStatus('未连接', '');
         log('连接已关闭');
       });
@@ -394,6 +404,11 @@
       }
     }
 
+    function restart() {
+      send({ type: 'restart' });
+      log('请求重新开始');
+    }
+
     function handleMessage(msg) {
       if (msg.type === 'hello') {
         log('服务端已连接');
@@ -404,8 +419,7 @@
         state.room = msg.room;
         state.width = msg.width;
         state.height = msg.height;
-        els.playerLabel.textContent = `id: ${msg.playerId}`;
-        els.roomLabel.textContent = `room: ${msg.room}`;
+        updateTopbar();
         log(`加入房间 ${msg.room}`);
         return;
       }
@@ -415,8 +429,9 @@
         state.height = msg.height;
         state.food = msg.food;
         state.players = msg.players || [];
-        els.roomLabel.textContent = `room: ${msg.room}`;
         renderPlayers();
+        updateTopbar();
+        updateRestartButton();
         draw();
         return;
       }
@@ -448,6 +463,32 @@
         row.append(name, score);
         els.players.appendChild(row);
       }
+    }
+
+    function currentPlayer() {
+      return state.players.find(player => player.id === state.playerId) || null;
+    }
+
+    function updateTopbar() {
+      const me = currentPlayer();
+      els.roomLabel.textContent = `room: ${state.room || '-'}`;
+      els.playerLabel.textContent = `id: ${state.playerId || '-'}`;
+      if (!me) {
+        els.scoreLabel.textContent = 'score: 0';
+        return;
+      }
+      els.scoreLabel.textContent = me.alive ? `score: ${me.score}` : `score: ${me.score} / 已阵亡`;
+    }
+
+    function updateRestartButton() {
+      const me = currentPlayer();
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !me) {
+        els.restart.disabled = true;
+        els.restart.textContent = '重新开始';
+        return;
+      }
+      els.restart.disabled = false;
+      els.restart.textContent = me.alive ? '重新开始' : '复活';
     }
 
     function draw() {
@@ -534,6 +575,7 @@
 
     els.connect.addEventListener('click', connect);
     els.disconnect.addEventListener('click', disconnect);
+    els.restart.addEventListener('click', restart);
     renderPlayers();
     draw();
   </script>

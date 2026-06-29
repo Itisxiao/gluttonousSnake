@@ -87,6 +87,12 @@ web/index.html
 {"type":"leave"}
 ```
 
+重新开始：
+
+```json
+{"type":"restart"}
+```
+
 心跳：
 
 ```json

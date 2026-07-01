@@ -150,7 +150,9 @@ std::string makeFrame(const std::string& payload, uint8_t opcode) {
         frame.push_back(static_cast<char>(payload.size()));
     } else if (payload.size() <= 65535) {
         frame.push_back(126);
+        // 解释：先右移 8 位，把高位的 0x12 移到低位，然后取出来。所以先 push 进去的是 0x12。
         frame.push_back(static_cast<char>((payload.size() >> 8) & 0xff));
+        // 解释：直接取低 8 位，也就是 0x34。后 push 进去的是 0x34。
         frame.push_back(static_cast<char>(payload.size() & 0xff));
     } else {
         frame.push_back(127);
